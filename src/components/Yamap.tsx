@@ -128,6 +128,15 @@ export class YaMap extends React.Component<YaMapProps> {
         );
     }
 
+    public getPolygonCoords(callback: (length: RouteLength) => void) {
+        const cbId = CallbacksManager.addCallback(callback);
+        UIManager.dispatchViewManagerCommand(
+            findNodeHandle(this),
+            this.getCommand('getPolygonCoords'),
+            [cbId]
+        );
+    }
+
     public setTrafficVisible(isVisible: boolean) {
         UIManager.dispatchViewManagerCommand(
             findNodeHandle(this),
@@ -156,14 +165,6 @@ export class YaMap extends React.Component<YaMapProps> {
         );
     }
 
-    public getPolygonCoords(callback: (length: RouteLength) => void) {
-        const cbId = CallbacksManager.addCallback(callback);
-        UIManager.dispatchViewManagerCommand(
-            findNodeHandle(this),
-            this.getCommand('getPolygonCoords'),
-            [cbId]
-        );
-    }
 
     public setZoom(zoom: number, duration: number = 0, animation: Animation = Animation.SMOOTH) {
         UIManager.dispatchViewManagerCommand(

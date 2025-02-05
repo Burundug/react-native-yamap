@@ -17,7 +17,7 @@ var SearchTypes;
     /**
      * Mass transit routes.
      */
-})(SearchTypes = exports.SearchTypes || (exports.SearchTypes = {}));
+})(SearchTypes || (exports.SearchTypes = SearchTypes = {}));
 var SearchTypesSnippets;
 (function (SearchTypesSnippets) {
     SearchTypesSnippets[SearchTypesSnippets["YMKSearchTypeUnspecified"] = 0] = "YMKSearchTypeUnspecified";
@@ -32,14 +32,14 @@ var SearchTypesSnippets;
     /**
      * Mass transit routes.
      */
-})(SearchTypesSnippets = exports.SearchTypesSnippets || (exports.SearchTypesSnippets = {}));
+})(SearchTypesSnippets || (exports.SearchTypesSnippets = SearchTypesSnippets = {}));
 var GeoFigureType;
 (function (GeoFigureType) {
     GeoFigureType["POINT"] = "POINT";
     GeoFigureType["BOUNDINGBOX"] = "BOUNDINGBOX";
     GeoFigureType["POLYLINE"] = "POLYLINE";
     GeoFigureType["POLYGON"] = "POLYGON";
-})(GeoFigureType = exports.GeoFigureType || (exports.GeoFigureType = {}));
+})(GeoFigureType || (exports.GeoFigureType = GeoFigureType = {}));
 var searchText = function (query, figure, options) {
     return YamapSearch.searchByAddress(query, figure, options);
 };

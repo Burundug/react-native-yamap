@@ -1,6 +1,6 @@
 import React from 'react';
 import { ViewProps, ImageSourcePropType, NativeSyntheticEvent } from 'react-native';
-import { Point, ScreenPoint, DrivingInfo, MasstransitInfo, RoutesFoundEvent, Vehicles, CameraPosition, VisibleRegion, InitialRegion, Animation, MapLoaded, YandexLogoPosition, YandexLogoPadding } from '../interfaces';
+import { Point, ScreenPoint, DrivingInfo, MasstransitInfo, RoutesFoundEvent, Vehicles, CameraPosition, RouteLength, VisibleRegion, InitialRegion, Animation, MapLoaded, YandexLogoPosition, YandexLogoPadding } from '../interfaces';
 export interface YaMapProps extends ViewProps {
     userLocationIcon?: ImageSourcePropType;
     userLocationIconScale?: number;
@@ -43,6 +43,7 @@ export declare class YaMap extends React.Component<YaMapProps> {
     findPedestrianRoutes(points: Point[], callback: (event: RoutesFoundEvent<MasstransitInfo>) => void): void;
     findDrivingRoutes(points: Point[], callback: (event: RoutesFoundEvent<DrivingInfo>) => void): void;
     fitAllMarkers(): void;
+    getPolygonCoords(callback: (length: RouteLength) => void): void;
     setTrafficVisible(isVisible: boolean): void;
     fitMarkers(points: Point[]): void;
     setCenter(center: {
@@ -60,6 +61,7 @@ export declare class YaMap extends React.Component<YaMapProps> {
     private processRoute;
     private processCameraPosition;
     private processVisibleRegion;
+    private processRouteLength;
     private processWorldToScreenPointsReceived;
     private processScreenToWorldPointsReceived;
     private resolveImageUri;

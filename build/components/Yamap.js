@@ -91,6 +91,10 @@ var YaMap = /** @class */ (function (_super) {
     YaMap.prototype.fitAllMarkers = function () {
         react_native_1.UIManager.dispatchViewManagerCommand((0, react_native_1.findNodeHandle)(this), this.getCommand('fitAllMarkers'), []);
     };
+    YaMap.prototype.getPolygonCoords = function (callback) {
+        var cbId = CallbacksManager_1.default.addCallback(callback);
+        react_native_1.UIManager.dispatchViewManagerCommand((0, react_native_1.findNodeHandle)(this), this.getCommand('getPolygonCoords'), [cbId]);
+    };
     YaMap.prototype.setTrafficVisible = function (isVisible) {
         react_native_1.UIManager.dispatchViewManagerCommand((0, react_native_1.findNodeHandle)(this), this.getCommand('setTrafficVisible'), [isVisible]);
     };
@@ -146,6 +150,10 @@ var YaMap = /** @class */ (function (_super) {
         var _a = event.nativeEvent, id = _a.id, visibleRegion = __rest(_a, ["id"]);
         CallbacksManager_1.default.call(id, visibleRegion);
     };
+    YaMap.prototype.processRouteLength = function (event) {
+        var _a = event.nativeEvent, id = _a.id, RouteLength = __rest(_a, ["id"]);
+        CallbacksManager_1.default.call(id, RouteLength);
+    };
     YaMap.prototype.processWorldToScreenPointsReceived = function (event) {
         var _a = event.nativeEvent, id = _a.id, screenPoints = __rest(_a, ["id"]);
         CallbacksManager_1.default.call(id, screenPoints);
@@ -158,7 +166,7 @@ var YaMap = /** @class */ (function (_super) {
         return img ? (0, resolveAssetSource_1.default)(img).uri : '';
     };
     YaMap.prototype.getProps = function () {
-        var props = __assign(__assign({}, this.props), { onRouteFound: this.processRoute, onCameraPositionReceived: this.processCameraPosition, onVisibleRegionReceived: this.processVisibleRegion, onWorldToScreenPointsReceived: this.processWorldToScreenPointsReceived, onScreenToWorldPointsReceived: this.processScreenToWorldPointsReceived, userLocationIcon: this.props.userLocationIcon ? this.resolveImageUri(this.props.userLocationIcon) : undefined });
+        var props = __assign(__assign({}, this.props), { onRouteFound: this.processRoute, onCameraPositionReceived: this.processCameraPosition, onVisibleRegionReceived: this.processVisibleRegion, onRouteLengthReceived: this.processRouteLength, onWorldToScreenPointsReceived: this.processWorldToScreenPointsReceived, onScreenToWorldPointsReceived: this.processScreenToWorldPointsReceived, userLocationIcon: this.props.userLocationIcon ? this.resolveImageUri(this.props.userLocationIcon) : undefined });
         (0, utils_1.processColorProps)(props, 'clusterColor');
         (0, utils_1.processColorProps)(props, 'userLocationAccuracyFillColor');
         (0, utils_1.processColorProps)(props, 'userLocationAccuracyStrokeColor');

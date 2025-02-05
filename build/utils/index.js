@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.guid = exports.processColorProps = void 0;
+exports.processColorProps = processColorProps;
+exports.guid = guid;
 var react_native_1 = require("react-native");
 function processColorProps(props, name) {
     if (props[name]) {
@@ -10,7 +11,6 @@ function processColorProps(props, name) {
         /* eslint-enable no-param-reassign */
     }
 }
-exports.processColorProps = processColorProps;
 function guid() {
     function s4() {
         return Math.floor((1 + Math.random()) * 0x10000)
@@ -19,5 +19,4 @@ function guid() {
     }
     return "".concat(s4()).concat(s4(), "-").concat(s4(), "-").concat(s4(), "-").concat(s4(), "-").concat(s4()).concat(s4()).concat(s4());
 }
-exports.guid = guid;
 //# sourceMappingURL=index.js.map

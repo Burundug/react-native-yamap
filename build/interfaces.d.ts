@@ -10,6 +10,9 @@ export interface ScreenPoint {
     x: number;
     y: number;
 }
+export interface RouteLength {
+    length: number;
+}
 export interface MapLoaded {
     renderObjectCount: number;
     curZoomModelsLoaded: number;
