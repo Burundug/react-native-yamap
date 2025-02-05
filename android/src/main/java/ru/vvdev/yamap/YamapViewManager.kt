@@ -9,10 +9,23 @@ import com.facebook.react.uimanager.ThemedReactContext
 import com.facebook.react.uimanager.ViewGroupManager
 import com.facebook.react.uimanager.annotations.ReactProp
 import com.yandex.mapkit.MapKitFactory
+import com.yandex.mapkit.geometry.Geo
 import com.yandex.mapkit.geometry.Point
+import com.yandex.mapkit.geometry.Polyline
+import com.yandex.mapkit.geometry.PolylinePosition
+import com.yandex.mapkit.geometry.geo.Projection
+import com.yandex.mapkit.geometry.geo.XYPoint
 import com.yandex.mapkit.map.CameraPosition
+import com.yandex.mapkit.map.CircleMapObject
+import com.yandex.mapkit.map.ClusterizedPlacemarkCollection
+import com.yandex.mapkit.map.MapObjectCollection
+import com.yandex.mapkit.map.MapObjectVisitor
+import com.yandex.mapkit.map.PlacemarkMapObject
+import com.yandex.mapkit.map.PolygonMapObject
+import com.yandex.mapkit.map.PolylineMapObject
 import ru.vvdev.yamap.view.YamapView
 import javax.annotation.Nonnull
+import kotlin.math.round
 
 class YamapViewManager internal constructor() : ViewGroupManager<YamapView>() {
     override fun getName(): String {
@@ -29,6 +42,13 @@ class YamapViewManager internal constructor() : ViewGroupManager<YamapView>() {
             .put(
                 "routes",
                 MapBuilder.of("phasedRegistrationNames", MapBuilder.of("bubbled", "onRouteFound"))
+            )
+            .put(
+                "routeLength",
+                MapBuilder.of(
+                    "phasedRegistrationNames",
+                    MapBuilder.of("bubbled", "onRouteLengthReceived")
+                )
             )
             .put(
                 "cameraPosition",
@@ -139,6 +159,50 @@ class YamapViewManager internal constructor() : ViewGroupManager<YamapView>() {
                 )
             }
 
+            "getPolygonCoords" -> {
+                val map = view.mapWindow.map
+                val mapObjects = map.mapObjects
+                var polyline: PolylineMapObject? = null
+                var polygon: PolygonMapObject? = null
+                var projection = map.projection()
+
+                mapObjects.traverse(object : MapObjectVisitor {
+
+                    override fun onPolylineVisited(p0: PolylineMapObject) {
+                        polyline = p0
+                    }
+
+                    override fun onPolygonVisited(p0: PolygonMapObject) {
+                        polygon = p0
+                    }
+
+                    override fun onPlacemarkVisited(p0: PlacemarkMapObject) {}
+                    override fun onCircleVisited(p0: CircleMapObject) {}
+                    override fun onCollectionVisitStart(p0: MapObjectCollection): Boolean = true
+                    override fun onCollectionVisitEnd(p0: MapObjectCollection) {}
+                    override fun onClusterizedCollectionVisitStart(p0: ClusterizedPlacemarkCollection): Boolean =
+                        true
+
+                    override fun onClusterizedCollectionVisitEnd(p0: ClusterizedPlacemarkCollection) {}
+                })
+
+
+                if (polyline != null && polygon != null) {
+
+                    val mainView = castToYaMapView(view)
+                    val zoom = mainView.map.cameraPosition.zoom
+                    var distanceOutside = analyzePolylineAndPolygon(
+                        polyline!!.geometry.points,
+                        polygon!!.geometry.outerRing.points,
+                        projection,
+                        zoom.toInt()
+                    )
+                    distanceOutside -= 500
+                    val total = if (distanceOutside > 0) round(distanceOutside / 1000) else 0
+                    view.emitRouteLength(total)
+                }
+            }
+
             "getCameraPosition" -> if (args != null) {
                 view.emitCameraPositionToJS(args.getString(0))
             }
@@ -168,6 +232,211 @@ class YamapViewManager internal constructor() : ViewGroupManager<YamapView>() {
             )
         }
     }
+
+        private fun isPointInsidePixelPolygon(point: XYPoint, polygon: List<XYPoint>): Boolean {
+            val x = point.x
+            val y = point.y
+            var inside = false
+            var j = polygon.size - 1
+
+            for (i in polygon.indices) {
+                val xi = polygon[i].x
+                val yi = polygon[i].y
+                val xj = polygon[j].x
+                val yj = polygon[j].y
+
+                val intersect = ((yi > y) != (yj > y)) &&
+                        (x < (xj - xi) * (y - yi) / (yj - yi) + xi)
+
+                if (intersect) inside = !inside
+                j = i
+            }
+            return inside
+        }
+
+        private fun doesPolylineIntersectPolygon(polyline: List<XYPoint>, polygon: List<XYPoint>): Boolean {
+            for (i in 0 until polyline.size - 1) {
+                val segmentStart = polyline[i]
+                val segmentEnd = polyline[i + 1]
+
+                for (j in 0 until polygon.size - 1) {
+                    val polygonStart = polygon[j]
+                    val polygonEnd = polygon[j + 1]
+
+                    if (doSegmentsIntersect(segmentStart, segmentEnd, polygonStart, polygonEnd)) {
+                        return true
+                    }
+                }
+            }
+            return false
+        }
+
+        private fun countPointsOnPolygonBoundary(polyline: List<XYPoint>, polygon: List<XYPoint>): Int {
+            var count = 0
+
+            for (point in polyline) {
+                for (j in 0 until polygon.size - 1) {
+                    val polygonStart = polygon[j]
+                    val polygonEnd = polygon[j + 1]
+
+                    if (isPointOnSegmentXY(point, polygonStart, polygonEnd)) {
+                        count++
+                        break
+                    }
+                }
+            }
+
+            return count
+        }
+
+        private fun isPointOnSegmentXY(p: XYPoint, a: XYPoint, b: XYPoint): Boolean {
+            val crossProduct = (p.y - a.y) * (b.x - a.x) - (p.x - a.x) * (b.y - a.y)
+            if (crossProduct != 0.0) return false
+
+            val dotProduct = (p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)
+            if (dotProduct < 0) return false
+
+            val squaredLength = (b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y)
+            return dotProduct <= squaredLength
+        }
+
+        private fun doSegmentsIntersect(a: XYPoint, b: XYPoint, c: XYPoint, d: XYPoint): Boolean {
+            fun crossProduct(p1: XYPoint, p2: XYPoint, p3: XYPoint): Double {
+                return (p2.x - p1.x) * (p3.y - p1.y) - (p2.y - p1.y) * (p3.x - p1.x)
+            }
+
+            val d1 = crossProduct(c, d, a)
+            val d2 = crossProduct(c, d, b)
+            val d3 = crossProduct(a, b, c)
+            val d4 = crossProduct(a, b, d)
+
+            if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) {
+                return true
+            }
+
+            return false
+        }
+
+        private fun getSegmentIntersection(
+            p1: XYPoint, p2: XYPoint, p3: XYPoint, p4: XYPoint
+        ): XYPoint? {
+            val denominator = (p4.y - p3.y) * (p2.x - p1.x) - (p4.x - p3.x) * (p2.y - p1.y)
+            if (denominator == 0.0) return null
+
+            val ua = ((p4.x - p3.x) * (p1.y - p3.y) - (p4.y - p3.y) * (p1.x - p3.x)) / denominator
+            val ub = ((p2.x - p1.x) * (p1.y - p3.y) - (p2.y - p1.y) * (p1.x - p3.x)) / denominator
+
+            if (ua in 0.0..1.0 && ub in 0.0..1.0) {
+                val x = p1.x + ua * (p2.x - p1.x)
+                val y = p1.y + ua * (p2.y - p1.y)
+                return XYPoint(x, y)
+            }
+            return null
+        }
+
+        private fun findIntersectionWithPolygonByPixels(
+            start: XYPoint,
+            end: XYPoint,
+            polygon: List<XYPoint>
+        ): XYPoint? {
+            for (j in 0 until polygon.size - 1) {
+                val polygonStart = polygon[j]
+                val polygonEnd = polygon[j + 1]
+
+                val intersection = getSegmentIntersection(start, end, polygonStart, polygonEnd)
+                if (intersection != null) {
+                    return intersection
+                }
+            }
+            return null
+        }
+
+        fun analyzePolylineAndPolygon(polyline: List<Point>, polygon: List<Point>, projection: Projection, zoom: Int): Double {
+            val polylinePixels = getXYFromCoords(polyline, projection, zoom)
+            val polygonPixels = getXYFromCoords(polygon, projection, zoom)
+
+            val pointsInside = mutableListOf<XYPoint>()
+            val pointsOutside = mutableListOf<XYPoint>()
+            val boundaryPoints = mutableListOf<XYPoint>()
+
+            for (i in polylinePixels.indices) {
+                val point = polylinePixels[i]
+                val isInside = isPointInsidePixelPolygon(point, polygonPixels)
+                var isOnBoundary = false
+
+
+                for (j in 0 until polygonPixels.size - 1) {
+                    val polygonStart = polygonPixels[j]
+                    val polygonEnd = polygonPixels[j + 1]
+
+                    if (doSegmentsIntersect(point, point, polygonStart, polygonEnd)) {
+                        boundaryPoints.add(point)
+                        isOnBoundary = true
+                        break
+                    }
+                }
+
+                if (isInside) {
+                    pointsInside.add(point)
+                } else if (!isOnBoundary) {
+                    if (i > 0) {
+                        val prevPoint = polylinePixels[i - 1]
+                        val wasInside = isPointInsidePixelPolygon(prevPoint, polygonPixels)
+
+
+                        if (wasInside) {
+                            val intersection = findIntersectionWithPolygonByPixels(prevPoint, point, polygonPixels)
+                            if (intersection != null) {
+                                pointsInside.add(intersection)
+                                pointsOutside.add(intersection)
+                            }
+                        }
+                    }
+                    pointsOutside.add(point)
+                }
+            }
+
+            val borderCount = countPointsOnPolygonBoundary(polylinePixels, polygonPixels)
+            val intersects = doesPolylineIntersectPolygon(polylinePixels, polygonPixels)
+            val coordsOutside = getCoordsFromXY(pointsOutside, projection, zoom)
+            val coordsInside = getCoordsFromXY(pointsInside, projection, zoom)
+            val distOutside = calculateOutsideDistance(coordsOutside)
+            val distInside = calculateOutsideDistance(coordsInside)
+            println("Total points: ${polylinePixels.size}")
+            println("Points inside: ${pointsInside.size}")
+            println("Points outside: ${pointsOutside.size}")
+            println("has intersects? $intersects")
+            println("Total points outside distance:$distOutside")
+            println("Total points inside distance: $distInside")
+            println("Total border points: $borderCount")
+            return distOutside
+        }
+        private  fun getCoordsFromXY(points: List<XYPoint>, projection: Projection, zoom: Int): List<Point> {
+            return points.map { point ->
+                projection.xyToWorld(point, zoom)
+            }
+        }
+        private fun getXYFromCoords(points: List<Point>, projection: Projection, zoom: Int): List<XYPoint> {
+            return points.map { point ->
+                projection.worldToXY(point, zoom)
+            }
+        }
+
+
+
+
+        fun calculateOutsideDistance(pointsOutside: List<Point>): Double {
+            if (pointsOutside.size < 2) return 0.0
+
+            var totalDistance = 0.0
+            for (i in 0 until pointsOutside.size - 1) {
+                val start = pointsOutside[i]
+                val end = pointsOutside[i + 1]
+
+                totalDistance += Geo.distance(start, end)
+            }
+            return totalDistance
+        }
 
     private fun castToYaMapView(view: View): YamapView {
         return view as YamapView

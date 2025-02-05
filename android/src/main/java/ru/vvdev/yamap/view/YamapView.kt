@@ -158,6 +158,14 @@ open class YamapView(context: Context?) : MapView(context), UserLocationObjectLi
         return cameraPosition
     }
 
+     private fun lengthToJSON(routeLength: Number): WritableMap {
+            val result = Arguments.createMap()
+
+            result.putInt("routeLength", routeLength.toInt())
+
+            return result
+     }
+
     private fun screenPointToJSON(screenPoint: ScreenPoint?): WritableMap {
         val result = Arguments.createMap()
 
@@ -210,6 +218,13 @@ open class YamapView(context: Context?) : MapView(context), UserLocationObjectLi
         val reactContext = context as ReactContext
         reactContext.getJSModule(RCTEventEmitter::class.java)
             .receiveEvent(getId(), "cameraPosition", cameraPosition)
+    }
+
+    fun emitRouteLength(routeLength: Number) {
+            val length = lengthToJSON(routeLength)
+            val reactContext = context as ReactContext
+            reactContext.getJSModule(RCTEventEmitter::class.java)
+                .receiveEvent(getId(), "routeLength", length)
     }
 
     fun emitVisibleRegionToJS(id: String?) {
