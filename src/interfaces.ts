@@ -15,6 +15,7 @@ export interface ScreenPoint {
 
 export interface RouteLength {
   length: number;
+  id: string;
 }
 
 export interface MapLoaded {

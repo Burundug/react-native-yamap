@@ -159,7 +159,7 @@ class YamapViewManager internal constructor() : ViewGroupManager<YamapView>() {
                 )
             }
 
-            "getPolygonCoords" -> {
+            "getPolygonCoords" -> if (args != null) {
                 val map = view.mapWindow.map
                 val mapObjects = map.mapObjects
                 var polyline: PolylineMapObject? = null
@@ -199,7 +199,7 @@ class YamapViewManager internal constructor() : ViewGroupManager<YamapView>() {
                     )
                     distanceOutside -= 500
                     val total = if (distanceOutside > 0) round(distanceOutside / 1000) else 0
-                    view.emitRouteLength(total)
+                    view.emitRouteLength(total, args.getString(0))
                 }
             }
 
