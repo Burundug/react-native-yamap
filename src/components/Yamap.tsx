@@ -43,6 +43,7 @@ export interface YaMapProps extends ViewProps {
     onMapPress?: (event: NativeSyntheticEvent<Point>) => void;
     onMapLongPress?: (event: NativeSyntheticEvent<Point>) => void;
     onMapLoaded?: (event: NativeSyntheticEvent<MapLoaded>) => void;
+    onPolylineAdd?: (event: NativeSyntheticEvent<null>) => void;
     userLocationAccuracyFillColor?: string;
     userLocationAccuracyStrokeColor?: string;
     userLocationAccuracyStrokeWidth?: number;
@@ -135,6 +136,16 @@ export class YaMap extends React.Component<YaMapProps> {
             this.getCommand('getPolygonCoords'),
             [cbId]
         );
+    }
+
+    public getClosestPoint(point: Point,points: Point[],  callback: (point: Point) => void) {
+        const cbId = CallbacksManager.addCallback(callback);
+        UIManager.dispatchViewManagerCommand(
+        findNodeHandle(this),
+            this.getCommand('findClosestPoint'),
+            [point, points, cbId]
+        );
+
     }
 
     public setTrafficVisible(isVisible: boolean) {
@@ -246,6 +257,10 @@ export class YaMap extends React.Component<YaMapProps> {
         const {id, ...RouteLength} = event.nativeEvent;
         CallbacksManager.call(id, RouteLength);
     }
+    private processClosestPoint(event: NativeSyntheticEvent<{ id: string } & Point>) {
+        const {id, ...point} = event.nativeEvent;
+        CallbacksManager.call(id, point);
+    }
 
     private processWorldToScreenPointsReceived(event: NativeSyntheticEvent<{ id: string } & ScreenPoint[]>) {
         const {id, ...screenPoints} = event.nativeEvent;
@@ -268,6 +283,7 @@ export class YaMap extends React.Component<YaMapProps> {
             onCameraPositionReceived: this.processCameraPosition,
             onVisibleRegionReceived: this.processVisibleRegion,
             onRouteLengthReceived: this.processRouteLength,
+            onClosestPointReceived: this.processClosestPoint,
             onWorldToScreenPointsReceived: this.processWorldToScreenPointsReceived,
             onScreenToWorldPointsReceived: this.processScreenToWorldPointsReceived,
             userLocationIcon: this.props.userLocationIcon ? this.resolveImageUri(this.props.userLocationIcon) : undefined

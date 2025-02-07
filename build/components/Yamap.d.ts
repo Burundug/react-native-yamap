@@ -12,6 +12,7 @@ export interface YaMapProps extends ViewProps {
     onMapPress?: (event: NativeSyntheticEvent<Point>) => void;
     onMapLongPress?: (event: NativeSyntheticEvent<Point>) => void;
     onMapLoaded?: (event: NativeSyntheticEvent<MapLoaded>) => void;
+    onPolylineAdd?: (event: NativeSyntheticEvent<null>) => void;
     userLocationAccuracyFillColor?: string;
     userLocationAccuracyStrokeColor?: string;
     userLocationAccuracyStrokeWidth?: number;
@@ -44,6 +45,7 @@ export declare class YaMap extends React.Component<YaMapProps> {
     findDrivingRoutes(points: Point[], callback: (event: RoutesFoundEvent<DrivingInfo>) => void): void;
     fitAllMarkers(): void;
     getPolygonCoords(callback: (length: RouteLength) => void): void;
+    getClosestPoint(point: Point, points: Point[], callback: (point: Point) => void): void;
     setTrafficVisible(isVisible: boolean): void;
     fitMarkers(points: Point[]): void;
     setCenter(center: {
@@ -62,6 +64,7 @@ export declare class YaMap extends React.Component<YaMapProps> {
     private processCameraPosition;
     private processVisibleRegion;
     private processRouteLength;
+    private processClosestPoint;
     private processWorldToScreenPointsReceived;
     private processScreenToWorldPointsReceived;
     private resolveImageUri;
