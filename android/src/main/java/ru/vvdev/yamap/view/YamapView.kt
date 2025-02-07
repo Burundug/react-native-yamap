@@ -222,11 +222,20 @@ open class YamapView(context: Context?) : MapView(context), UserLocationObjectLi
     }
 
     fun emitRouteLength(routeLength: Number, callbackId: String?) {
-
             val length = lengthToJSON(routeLength, callbackId)
             val reactContext = context as ReactContext
             reactContext.getJSModule(RCTEventEmitter::class.java)
                 .receiveEvent(id, "routeLength", length)
+    }
+
+    fun emitClosestPoint(point: Point, callbackId: String?) {
+        val result = Arguments.createMap()
+        val worldPoint = worldPointToJSON(point)
+        result.putMap("point",worldPoint)
+        result.putString("id", callbackId)
+        val reactContext = context as ReactContext
+        reactContext.getJSModule(RCTEventEmitter::class.java)
+            .receiveEvent(id, "closestPoint", result)
     }
 
     fun emitVisibleRegionToJS(id: String?) {
@@ -795,6 +804,7 @@ open class YamapView(context: Context?) : MapView(context), UserLocationObjectLi
             val _child = child
             val obj = mapWindow.map.mapObjects.addPolyline(_child.polyline)
             _child.setPolylineMapObject(obj)
+            onPolylineAdd()
         } else if (child is YamapMarker) {
             val _child = child
             val obj = mapWindow.map.mapObjects.addPlacemark(_child.point!!)
@@ -903,6 +913,13 @@ open class YamapView(context: Context?) : MapView(context), UserLocationObjectLi
         data.putDouble("fullyLoaded", statistics.fullyLoaded.toDouble())
         val reactContext = context as ReactContext
         reactContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(id, "onMapLoaded", data)
+    }
+
+     private fun onPolylineAdd() {
+         val reactContext = context as ReactContext
+         val data = Arguments.createMap()
+         data.putBoolean("status", true)
+        reactContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(id, "onPolylineAdd", data)
     }
 
     //trafficListener implementation
