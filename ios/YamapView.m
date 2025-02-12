@@ -5,6 +5,12 @@
 #import "YamapView.h"
 #import "RNYamap.h"
 #import "View/RNYMView.h"
+@import YandexMapsMobile;
+#import <YandexMapsMobile/YMKGeo.h>
+#import <YandexMapsMobile/YMKMapObjectVisitor.h>
+#import <YandexMapsMobile/YMKGeometry.h>
+#import <YandexMapsMobile/YMKPoint.h>
+#import "MapObjectVisitor.h"
 
 #ifndef MAX
 #import <NSObjCRuntime.h>
@@ -17,12 +23,15 @@ RCT_EXPORT_MODULE()
 - (NSArray<NSString*>*)supportedEvents {
     return @[
         @"onRouteFound",
+        @"onRouteLengthReceived",
         @"onCameraPositionReceived",
+        @"onClosestPointReceived",
         @"onVisibleRegionReceived",
         @"onCameraPositionChange",
         @"onCameraPositionChangeEnd",
         @"onMapPress",
         @"onMapLongPress",
+        @"onPolylineAdd",
         @"onMapLoaded",
         @"onWorldToScreenPointsReceived",
         @"onScreenToWorldPointsReceived"
@@ -53,13 +62,16 @@ RCT_EXPORT_MODULE()
 
 // PROPS
 RCT_EXPORT_VIEW_PROPERTY(onRouteFound, RCTBubblingEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onRouteLengthReceived, RCTBubblingEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onCameraPositionReceived, RCTBubblingEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onClosestPointReceived, RCTBubblingEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onVisibleRegionReceived, RCTBubblingEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onCameraPositionChange, RCTBubblingEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onCameraPositionChangeEnd, RCTBubblingEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onMapPress, RCTBubblingEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onMapLongPress, RCTBubblingEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onMapLoaded, RCTBubblingEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onPolylineAdd, RCTBubblingEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onWorldToScreenPointsReceived, RCTBubblingEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onScreenToWorldPointsReceived, RCTBubblingEventBlock)
 
@@ -220,6 +232,105 @@ RCT_EXPORT_METHOD(findRoutes:(nonnull NSNumber *)reactTag json:(NSDictionary *)j
         [view findRoutes: requestPoints vehicles: vehicles withId:json[@"id"]];
     }];
 }
+
+RCT_EXPORT_METHOD(findClosestPoint:(nonnull NSNumber *)reactTag point:(id)pointJson
+                  points:(id)pointsJson
+                  cbId:(nonnull NSString *)cbId) {
+
+    [self.bridge.uiManager addUIBlock:^(RCTUIManager *uiManager, NSDictionary<NSNumber *, UIView *> *viewRegistry) {
+        RNYMView *view = (RNYMView *)viewRegistry[reactTag];
+        if (![pointJson isKindOfClass:[NSArray class]] || [pointJson count] < 2) {
+            NSLog(@"Error: pointJson is not a valid array [lat, lon]");
+            return;
+        }
+
+
+
+        YMKPoint *singlePoint = [RCTConvert PointFromArray:pointJson];
+ 
+        
+
+        if (![pointsJson isKindOfClass:[NSArray class]]) {
+            NSLog(@"Error: pointsJson is not a valid array");
+            return;
+        }
+
+        NSMutableArray<YMKPoint *> *pointsList = [RCTConvert PointsArray: pointsJson];
+        
+        
+        // Поиск ближайшей точки в массиве
+          YMKPoint *closestPoint = nil;
+          double minDistance = DBL_MAX;
+
+          for (YMKPoint *point in pointsList) {
+              double distance = YMKDistance(singlePoint, point);
+              
+              if (distance < minDistance) {
+                  minDistance = distance;
+                  closestPoint = point;
+              }
+          }
+
+          if (closestPoint) {
+              NSLog(@"Closest point: %f, %f", closestPoint.latitude, closestPoint.longitude);
+          }
+
+        [view emitClosestPoint:closestPoint withId:cbId];
+            
+            
+                                                  NSLog(@"ReactTag: %@", reactTag);
+                                                    NSLog(@"Point: %@", singlePoint);
+                                                  NSLog(@"Points List: %@", pointsList);
+    }];
+}
+
+- (void)waitForPolylineAndContinue:(RNYMView* )view cbId:(NSString *)cbId {
+    
+    YMKMap * map= view.mapWindow.map;
+    YMKMapObjectCollection *mapObjects = map.mapObjects;
+    MapObjectVisitor *visitor = [[MapObjectVisitor alloc] init];
+
+    [mapObjects traverseWithMapObjectVisitor:visitor];
+
+    if (visitor.polyline && visitor.polyline.geometry.points.count > 0) {
+        YMKMapObjectCollection *mapObjects = view.mapWindow.map.mapObjects;
+
+        MapObjectVisitor *visitor = [[MapObjectVisitor alloc] init];
+
+        [mapObjects traverseWithMapObjectVisitor:visitor];
+
+        YMKPolylineMapObject *polyline = visitor.polyline;
+        YMKPolygonMapObject *polygon = visitor.polygon;
+        
+        if (polyline && polygon) {
+            double zoom = map.cameraPosition.zoom;
+            YMKProjection *projection = map.projection;
+            
+         
+        [view analyzePolylineAndPolygon:polyline.geometry.points
+                                                       polygon:polygon.geometry.outerRing.points
+                                                          projection:projection
+                                                                zoom:(int)zoom withId:cbId];
+
+        }
+    } else {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [self waitForPolylineAndContinue:view cbId:cbId];
+        });
+    }
+}
+
+RCT_EXPORT_METHOD(getPolygonCoords:(nonnull NSNumber *)reactTag cbId:(nonnull NSString *)cbId) {
+
+    [self.bridge.uiManager addUIBlock:^(RCTUIManager *uiManager, NSDictionary<NSNumber *, UIView *> *viewRegistry) {
+        RNYMView *view = (RNYMView *)viewRegistry[reactTag];
+        // Получаем карту
+        [self waitForPolylineAndContinue:view cbId:cbId];
+    }];
+}
+
+
+
 
 RCT_EXPORT_METHOD(setCenter:(nonnull NSNumber *)reactTag center:(NSDictionary *_Nonnull)center zoom:(NSNumber *_Nonnull)zoom azimuth:(NSNumber *_Nonnull)azimuth tilt:(NSNumber *_Nonnull)tilt duration:(NSNumber *_Nonnull)duration animation:(NSNumber *_Nonnull)animation) {
     [self.bridge.uiManager addUIBlock:^(RCTUIManager *uiManager, NSDictionary<NSNumber *, UIView *> *viewRegistry) {

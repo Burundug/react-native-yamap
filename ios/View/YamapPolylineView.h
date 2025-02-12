@@ -3,11 +3,21 @@
 #import <React/RCTComponent.h>
 @import YandexMapsMobile;
 
+@protocol YamapPolylineViewDelegate <NSObject>
+- (void)onPolylineAddDelegate;
+@end
+
 @interface YamapPolylineView: UIView<YMKMapObjectTapListener>
 
+
+
+
 @property (nonatomic, copy) RCTBubblingEventBlock onPress;
+@property (nonatomic, copy) RCTBubblingEventBlock onPolylineAdd;
+@property (nonatomic, weak) id<YamapPolylineViewDelegate> delegate;
 
 // PROPS
+
 - (void)setOutlineColor:(UIColor*)color;
 - (void)setStrokeColor:(UIColor*)color;
 - (void)setStrokeWidth:(NSNumber*)width;

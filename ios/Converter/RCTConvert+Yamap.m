@@ -40,6 +40,35 @@
     return result;
 }
 
++ (NSMutableArray<YMKPoint*>*)PointsArray:(id)json {
+    NSArray *parsedArray = [self NSArray:json]; // Конвертируем в NSArray
+    NSMutableArray *result = [[NSMutableArray alloc] init];
+
+    for (NSArray *pointArray in parsedArray) {
+        if (![pointArray isKindOfClass:[NSArray class]] || pointArray.count < 2) {
+            NSLog(@"Skipping invalid point: %@", pointArray);
+            continue;
+        }
+
+        YMKPoint *point =  [self PointFromArray: pointArray];
+        [result addObject:point];
+    }
+
+    return result;
+}
+
++ (YMKPoint*)PointFromArray:(id)json {
+
+    if (![json isKindOfClass:[NSArray class]] || [json count] < 2) {
+        NSLog(@"Error: json is not a valid array [lat, lon]");
+    }
+
+    double lat = [json[0] doubleValue];
+    double lon = [json[1] doubleValue];
+
+    return [YMKPoint pointWithLatitude:lat longitude:lon];
+}
+
 + (NSMutableArray<YMKScreenPoint*>*)ScreenPoints:(id)json {
     NSArray* parsedArray = [self NSArray:json];
     NSMutableArray* result = [[NSMutableArray alloc] init];

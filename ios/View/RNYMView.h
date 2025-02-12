@@ -2,14 +2,17 @@
 #define RNYMView_h
 #import <React/RCTComponent.h>
 #import <MapKit/MapKit.h>
+#import "YamapPolylineView.h"
+
 @import YandexMapsMobile;
 
 @class RCTBridge;
 
-@interface RNYMView: YMKMapView<YMKUserLocationObjectListener, YMKMapCameraListener, RCTComponent, YMKMapLoadedListener, YMKTrafficDelegate>
+@interface RNYMView: YMKMapView<YMKUserLocationObjectListener, YMKMapCameraListener, RCTComponent, YMKMapLoadedListener, YMKTrafficDelegate, YamapPolylineViewDelegate>
 
 @property (nonatomic, assign) CGRect mapFrame;
 @property (nonatomic, copy) RCTBubblingEventBlock _Nullable onRouteFound;
+@property (nonatomic, copy) RCTBubblingEventBlock _Nullable onClosestPointReceived;
 @property (nonatomic, copy) RCTBubblingEventBlock _Nullable onCameraPositionReceived;
 @property (nonatomic, copy) RCTBubblingEventBlock _Nullable onVisibleRegionReceived;
 @property (nonatomic, copy) RCTBubblingEventBlock _Nullable onCameraPositionChange;
@@ -17,12 +20,15 @@
 @property (nonatomic, copy) RCTBubblingEventBlock _Nullable onMapPress;
 @property (nonatomic, copy) RCTBubblingEventBlock _Nullable onMapLongPress;
 @property (nonatomic, copy) RCTBubblingEventBlock _Nullable onMapLoaded;
+@property (nonatomic, copy) RCTBubblingEventBlock _Nullable onPolylineAdd;
 @property (nonatomic, copy) RCTBubblingEventBlock _Nullable onWorldToScreenPointsReceived;
 @property (nonatomic, copy) RCTBubblingEventBlock _Nullable onScreenToWorldPointsReceived;
+@property (nonatomic, copy) RCTBubblingEventBlock _Nullable onRouteLengthReceived;
 
 // REF
 - (void)emitCameraPositionToJS:(NSString *_Nonnull)_id;
 - (void)emitVisibleRegionToJS:(NSString *_Nonnull)_id;
+- (void)emitClosestPoint:(YMKPoint *_Nonnull)point withId:(NSString *_Nonnull)_id;
 - (void)setCenter:(YMKCameraPosition *_Nonnull)position withDuration:(float)duration withAnimation:(int)animation;
 - (void)setZoom:(float)zoom withDuration:(float)duration withAnimation:(int)animation;
 - (void)fitAllMarkers;
@@ -31,6 +37,11 @@
 - (void)setTrafficVisible:(BOOL)traffic;
 - (void)emitWorldToScreenPoint:(NSArray<YMKPoint *> *_Nonnull)points withId:(NSString*_Nonnull)_id;
 - (void)emitScreenToWorldPoint:(NSArray<YMKScreenPoint *> *_Nonnull)points withId:(NSString*_Nonnull)_id;
+- (void)analyzePolylineAndPolygon:(nullable NSArray<YMKPoint *> *)polyline
+                          polygon:(nullable NSArray<YMKPoint *> *)polygon
+                      projection:(nullable YMKProjection *)projection
+                            zoom:(int)zoom
+                          withId:(nullable NSString *)cbId;
 - (YMKBoundingBox *_Nonnull)calculateBoundingBox:(NSArray<YMKPoint *> *_Nonnull)points;
 
 // PROPS

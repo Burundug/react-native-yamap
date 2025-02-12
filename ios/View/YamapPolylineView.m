@@ -105,6 +105,10 @@
     mapObject = _mapObject;
     [mapObject addTapListenerWithTapListener:self];
     [self updatePolyline];
+    if ([self.delegate respondsToSelector:@selector(onPolylineAddDelegate)]) {
+        [self.delegate onPolylineAddDelegate];
+    }
+
 }
 
 - (void)setHandled:(BOOL)_handled {

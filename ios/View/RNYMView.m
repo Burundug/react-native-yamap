@@ -18,6 +18,8 @@
 #import "YamapMarkerView.h"
 #import "YamapCircleView.h"
 #import "RNYMView.h"
+#import <YandexMapsMobile/YMKProjection.h>
+#import <YandexMapsMobile/YMKGeo.h>
 
 #define ANDROID_COLOR(c) [UIColor colorWithRed:((c>>16)&0xFF)/255.0 green:((c>>8)&0xFF)/255.0 blue:((c)&0xFF)/255.0  alpha:((c>>24)&0xFF)/255.0]
 
@@ -368,6 +370,7 @@
 
     if ([initialParams valueForKey:@"tilt"] != nil) initialTilt = [initialParams[@"tilt"] floatValue];
 
+
     YMKPoint *initialRegionCenter = [RCTConvert YMKPoint:@{@"lat" : [initialParams valueForKey:@"lat"], @"lon" : [initialParams valueForKey:@"lon"]}];
     YMKCameraPosition *initialRegioPosition = [YMKCameraPosition cameraPositionWithTarget:initialRegionCenter zoom:initialZoom azimuth:initialAzimuth tilt:initialTilt];
     [self.mapWindow.map moveWithCameraPosition:initialRegioPosition];
@@ -437,6 +440,17 @@
             @"lon": [NSNumber numberWithDouble:region.topRight.longitude]
         }
     };
+}
+
+- (void)emitClosestPoint:(YMKPoint *) point withId:(NSString *)_id{
+    NSDictionary *closestPoint = @{
+        @"point": [self worldPointToJSON:point ],
+    };
+    NSMutableDictionary *response = [NSMutableDictionary dictionaryWithDictionary:closestPoint];
+    [response setValue:_id forKey:@"id"];
+    if (self.onClosestPointReceived) {
+        self.onClosestPointReceived(response);
+    }
 }
 
 - (void)emitCameraPositionToJS:(NSString *)_id {
@@ -731,6 +745,266 @@
     [super addSubview:view];
 }
 
+- (void)analyzePolylineAndPolygon:(NSArray<YMKPoint *> *)polyline
+                            polygon:(NSArray<YMKPoint *> *)polygon
+                         projection:(YMKProjection *)projection
+                               zoom:(int)zoom withId:(NSString *)_id {
+
+    NSArray<YMKXYPoint *> *polylinePixels = [self getXYFromCoords:polyline projection:projection zoom:zoom];
+    NSArray<YMKXYPoint *> *polygonPixels = [self getXYFromCoords:polygon projection:projection zoom:zoom];
+
+    NSMutableArray<YMKXYPoint *> *pointsInside = [NSMutableArray new];
+    NSMutableArray<YMKXYPoint *> *pointsOutside = [NSMutableArray new];
+    NSMutableArray<YMKXYPoint *> *boundaryPoints = [NSMutableArray new];
+
+    for (NSUInteger i = 0; i < polylinePixels.count; i++) {
+        YMKXYPoint *point = polylinePixels[i];
+        BOOL isInside = [self isPointInsidePixelPolygon:point polygon:polygonPixels];
+        BOOL isOnBoundary = NO;
+
+        for (NSUInteger j = 0; j < polygonPixels.count - 1; j++) {
+            YMKXYPoint *polygonStart = polygonPixels[j];
+            YMKXYPoint *polygonEnd = polygonPixels[j + 1];
+
+            if ([self doSegmentsIntersect:point B:point C:polygonStart D:polygonEnd]) {
+                [boundaryPoints addObject:point];
+                isOnBoundary = YES;
+                break;
+            }
+        }
+
+        if (isInside) {
+            [pointsInside addObject:point];
+        } else if (!isOnBoundary) {
+            if (i > 0) {
+                YMKXYPoint *prevPoint = polylinePixels[i - 1];
+                BOOL wasInside = [self isPointInsidePixelPolygon:prevPoint polygon:polygonPixels];
+
+                if (wasInside) {
+                    YMKXYPoint *intersection = [self findIntersectionWithPolygonByPixelsWithStart:prevPoint
+                                                                                          end:point
+                                                                                      polygon:polygonPixels];
+                    if (intersection) {
+                        [pointsInside addObject:intersection];
+                        [pointsOutside addObject:intersection];
+                    }
+                }
+            }
+            [pointsOutside addObject:point];
+        }
+    }
+
+    int borderCount = [self countPointsOnPolygonBoundary:polylinePixels polygon:polygonPixels];
+    BOOL intersects = [self doesPolylineIntersectPolygon:polylinePixels polygon:polygonPixels];
+    NSArray<YMKPoint *> *coordsOutside = [self getCoordsFromXY:pointsOutside projection:projection zoom:zoom];
+    double distOutside = [self calculateOutsideDistance:coordsOutside];
+ 
+
+    NSLog(@"Total points: %lu", (unsigned long)polylinePixels.count);
+    NSLog(@"Points inside: %lu", (unsigned long)pointsInside.count);
+    NSLog(@"Points outside: %lu", (unsigned long)pointsOutside.count);
+    NSLog(@"Has intersects? %@", intersects ? @"YES" : @"NO");
+    NSLog(@"Total points outside distance: %f", distOutside);
+    NSLog(@"Total border points: %d", borderCount);
+    distOutside -= 500;
+    double total = (distOutside > 0) ? round(distOutside / 1000) : 0;
+
+    NSMutableDictionary *response = [[NSMutableDictionary alloc] init];
+    [response setValue:_id forKey:@"id"];
+    [response setValue:@(total) forKey:@"routeLength"];
+
+    if (self.onRouteLengthReceived) {
+        self.onRouteLengthReceived(response);
+    }
+}
+
+- (double) calculateOutsideDistance:(NSArray<YMKPoint *> *)points {
+    NSUInteger count = points.count;
+    if (count < 2) {
+        return 0.0;
+    }
+
+    double totalDistance = 0.0;
+    for (NSUInteger i = 0; i < count - 1; i++) {
+        YMKPoint *start = points[i];
+        YMKPoint *end = points[i + 1];
+        totalDistance += YMKDistance(start,end);
+    }
+    return totalDistance;
+}
+
+- (nullable YMKXYPoint *)findIntersectionWithPolygonByPixelsWithStart:(YMKXYPoint *)start
+                                                                   end:(YMKXYPoint *)end
+                                                               polygon:(NSArray<YMKXYPoint *> *)polygon {
+    for (NSUInteger j = 0; j < polygon.count - 1; j++) {
+        YMKXYPoint *polygonStart = polygon[j];
+        YMKXYPoint *polygonEnd = polygon[j + 1];
+
+        YMKXYPoint *intersection = [self getSegmentIntersection:start P2:end P3:polygonStart P4:polygonEnd];
+
+        if (intersection) {
+            return intersection;
+        }
+    }
+    return nil;
+}
+
+- (int)countPointsOnPolygonBoundary:(NSArray<YMKXYPoint *> *)polyline
+                                        polygon:(NSArray<YMKXYPoint *> *)polygon {
+    int count = 0;
+
+    for (YMKXYPoint *point in polyline) {
+        for (NSUInteger j = 0; j < polygon.count - 1; j++) {
+            YMKXYPoint *polygonStart = polygon[j];
+            YMKXYPoint *polygonEnd = polygon[j + 1];
+
+            if ([self isPointOnSegmentXYWithPoint:point
+                                     segmentStart:polygonStart
+                                       segmentEnd:polygonEnd]) {
+                count++;
+                break;
+            }
+        }
+    }
+
+    return count;
+}
+
+    - (Boolean) doesPolylineIntersectPolygon:(NSArray<YMKXYPoint *> *)polyline
+                                     polygon:(NSArray<YMKXYPoint *> *)polygon {
+    NSUInteger polylineCount = polyline.count;
+    NSUInteger polygonCount = polygon.count;
+    
+    if (polylineCount < 2 || polygonCount < 2) {
+        return NO;
+    }
+
+    for (NSUInteger i = 0; i < polyline.count; i++) {
+        YMKXYPoint *segmentStart = polyline[i];
+        YMKXYPoint *segmentEnd = polyline[i + 1];
+
+        for (NSUInteger j = 0; j < polygonCount - 1; j++) {
+            YMKXYPoint *polygonStart = polygon[j] ;
+            YMKXYPoint *polygonEnd = polygon[j + 1];
+
+            if ([self doSegmentsIntersect:segmentStart B:segmentEnd C:polygonStart D:polygonEnd]) {
+                return YES;
+            }
+        }
+    }
+    return NO;
+}
+
+- (BOOL)isPointOnSegmentXYWithPoint:(YMKXYPoint *)point
+                       segmentStart:(YMKXYPoint *)segmentStart
+                         segmentEnd:(YMKXYPoint *)segmentEnd {
+    double crossProduct = (point.y - segmentStart.y) * (segmentEnd.x - segmentStart.x) -
+                          (point.x - segmentStart.x) * (segmentEnd.y - segmentStart.y);
+    if (fabs(crossProduct) > DBL_EPSILON) return NO;
+
+    double dotProduct = (point.x - segmentStart.x) * (segmentEnd.x - segmentStart.x) +
+                        (point.y - segmentStart.y) * (segmentEnd.y - segmentStart.y);
+    if (dotProduct < 0) return NO;
+
+    double squaredLength = (segmentEnd.x - segmentStart.x) * (segmentEnd.x - segmentStart.x) +
+                           (segmentEnd.y - segmentStart.y) * (segmentEnd.y - segmentStart.y);
+    return dotProduct <= squaredLength;
+}
+
+
+- (YMKXYPoint *)getSegmentIntersection:(YMKXYPoint *)p1
+                                          P2:(YMKXYPoint *)p2
+                                          P3:(YMKXYPoint *)p3
+                                          P4:(YMKXYPoint *)p4 {
+    double denominator = (p4.y - p3.y) * (p2.x - p1.x) - (p4.x - p3.x) * (p2.y - p1.y);
+    if (denominator == 0.0) {
+        return [YMKXYPoint xYPointWithX:0 y:0]; // Если линии параллельны, возвращаем (0,0)
+    }
+
+    double ua = ((p4.x - p3.x) * (p1.y - p3.y) - (p4.y - p3.y) * (p1.x - p3.x)) / denominator;
+    double ub = ((p2.x - p1.x) * (p1.y - p3.y) - (p2.y - p1.y) * (p1.x - p3.x)) / denominator;
+
+    if (ua >= 0.0 && ua <= 1.0 && ub >= 0.0 && ub <= 1.0) {
+        double x = p1.x + ua * (p2.x - p1.x);
+        double y = p1.y + ua * (p2.y - p1.y);
+        return [YMKXYPoint xYPointWithX:x y:y];
+    }
+
+    return nil;
+}
+
+
+- (BOOL)isPointInsidePixelPolygon:(YMKXYPoint *)point polygon:(NSArray<YMKXYPoint *> *)polygon {
+    double x = point.x;
+    double y = point.y;
+    BOOL inside = NO;
+    NSUInteger j = polygon.count - 1;
+
+    for (NSUInteger i = 0; i < polygon.count; i++) {
+        double xi = polygon[i].x;
+        double yi = polygon[i].y;
+        double xj = polygon[j].x;
+        double yj = polygon[j].y;
+
+        BOOL intersect = ((yi > y) != (yj > y)) &&
+                         (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+
+        if (intersect) {
+            inside = !inside;
+        }
+        j = i;
+    }
+    return inside;
+}
+
+- (NSArray<YMKPoint *> *)getCoordsFromXY:(NSArray<YMKXYPoint *> *)points
+                              projection:(YMKProjection *)projection
+                                    zoom:(int)zoom {
+    NSMutableArray<YMKPoint *> *xyPoints = [NSMutableArray new];
+
+    for (YMKXYPoint *point in points) {
+        YMKPoint *xyPoint = [projection xyToWorldWithXyPoint:point zoom:zoom];
+        [xyPoints addObject:xyPoint];
+    }
+
+    return [xyPoints copy];
+}
+
+
+- (NSArray<YMKXYPoint *> *)getXYFromCoords:(NSArray<YMKPoint *> *)points
+                             projection:(YMKProjection *)projection
+                                   zoom:(int)zoom {
+    NSMutableArray<YMKXYPoint *> *xyPoints = [NSMutableArray new];
+
+    for (YMKPoint *point in points) {
+        YMKXYPoint *xyPoint = [projection worldToXYWithGeoPoint:point zoom:zoom];
+        [xyPoints addObject:xyPoint];
+    }
+
+    return [xyPoints copy];
+}
+
+- (double) crossProduct:(YMKXYPoint *)p1 p2:(YMKXYPoint *)p2  p3:(YMKXYPoint *)p3 {
+    return (p2.x - p1.x) * (p3.y - p1.y) - (p2.y - p1.y) * (p3.x - p1.x);
+}
+
+- (BOOL)doSegmentsIntersect:(YMKXYPoint *)a
+                              B:(YMKXYPoint *)b
+                              C:(YMKXYPoint *)c
+                              D:(YMKXYPoint *)d {
+
+
+    double d1 = [self crossProduct:c p2:d p3:a];
+    double d2 = [self crossProduct:c p2:d p3:b];
+    double d3 = [self crossProduct:a p2:b p3:c];
+    double d4 = [self crossProduct:a p2:b p3:d];
+
+    return (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+            ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0)));
+}
+
+
+
 - (void)insertReactSubview:(UIView<RCTComponent> *)subview atIndex:(NSInteger)atIndex {
     if ([subview isKindOfClass:[YamapPolygonView class]]) {
         YMKMapObjectCollection *objects = self.mapWindow.map.mapObjects;
@@ -741,6 +1015,7 @@
         YMKMapObjectCollection *objects = self.mapWindow.map.mapObjects;
         YamapPolylineView *polyline = (YamapPolylineView*) subview;
         YMKPolylineMapObject *obj = [objects addPolylineWithPolyline:[polyline getPolyline]];
+        polyline.delegate = self;
         [polyline setMapObject:obj];
     } else if ([subview isKindOfClass:[YamapMarkerView class]]) {
         YMKMapObjectCollection *objects = self.mapWindow.map.mapObjects;
@@ -766,6 +1041,12 @@
 - (void)insertMarkerReactSubview:(UIView<RCTComponent> *) subview atIndex:(NSInteger) atIndex {
     [_reactSubviews insertObject:subview atIndex:atIndex];
     [super insertReactSubview:subview atIndex:atIndex];
+}
+
+- (void)onPolylineAddDelegate {
+    if (self.onPolylineAdd) {
+        self.onPolylineAdd(@{});
+    }
 }
 
 - (void)removeMarkerReactSubview:(UIView<RCTComponent> *) subview {
