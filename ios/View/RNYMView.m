@@ -879,7 +879,7 @@
         return NO;
     }
 
-    for (NSUInteger i = 0; i < polyline.count; i++) {
+        for (NSUInteger i = 0; i < polyline.count - 1; i++) {
         YMKXYPoint *segmentStart = polyline[i];
         YMKXYPoint *segmentEnd = polyline[i + 1];
 
