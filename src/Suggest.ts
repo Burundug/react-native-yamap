@@ -6,6 +6,7 @@ const { YamapSuggests } = NativeModules;
 export type YamapSuggest = {
   title: string;
   subtitle?: string;
+  center?: YamapCoords,
   uri?: string;
 };
 export type YamapCoords = {

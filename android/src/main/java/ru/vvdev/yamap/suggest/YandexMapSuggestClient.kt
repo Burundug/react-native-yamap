@@ -58,6 +58,12 @@ class YandexMapSuggestClient(context: Context?) : MapSuggestClient {
                         val rawSuggest = suggestResponse.items[i]
                         val suggest = MapSuggestItem()
                         suggest.searchText = rawSuggest.searchText
+                        rawSuggest.center?.let { point ->
+                            suggest.center = mapOf(
+                                "lat" to point.latitude,
+                                "lon" to point.longitude
+                            )
+                        }
                         suggest.title = rawSuggest.title.text
                         if (rawSuggest.subtitle != null) {
                             suggest.subtitle = rawSuggest.subtitle!!.text

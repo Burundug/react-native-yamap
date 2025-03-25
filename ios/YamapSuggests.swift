@@ -75,6 +75,12 @@ class YamapSuggests: NSObject {
                         suggestToPass["title"] = suggestItem.title.text
                         suggestToPass["subtitle"] = suggestItem.subtitle?.text
                         suggestToPass["uri"] = suggestItem.uri
+                        if let center = suggestItem.center {
+                            suggestToPass["center"] = [
+                                "lat": center.latitude,
+                                "lon": center.longitude
+                            ]
+                        }
                         suggestsToPass.append(suggestToPass)
                     }
 

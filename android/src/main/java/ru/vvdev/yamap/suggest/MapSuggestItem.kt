@@ -4,6 +4,8 @@ class MapSuggestItem {
     @JvmField
     var searchText: String? = null
     @JvmField
+    var center: Map<String, Double>? = null
+    @JvmField
     var title: String? = null
     @JvmField
     var subtitle: String? = null
