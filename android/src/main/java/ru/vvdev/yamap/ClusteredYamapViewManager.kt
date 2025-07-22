@@ -24,7 +24,7 @@ class ClusteredYamapViewManager internal constructor() : ViewGroupManager<Cluste
             .build()
     }
 
-    override fun getExportedCustomBubblingEventTypeConstants(): MutableMap<String, Any>? {
+    override fun getExportedCustomBubblingEventTypeConstants(): Map<String, Any> {
         return MapBuilder.builder<String, Any>()
             .put(
                 "routes",
@@ -128,7 +128,7 @@ class ClusteredYamapViewManager internal constructor() : ViewGroupManager<Cluste
             }
 
             "findRoutes" -> if (args != null) {
-                findRoutes(view, args.getArray(0), args.getArray(1), args.getString(2))
+                args.getString(2)?.let { findRoutes(view, args.getArray(0), args.getArray(1), it) }
             }
 
             "setZoom" -> if (args != null) {
@@ -152,11 +152,11 @@ class ClusteredYamapViewManager internal constructor() : ViewGroupManager<Cluste
             }
 
             "getScreenPoints" -> if (args != null) {
-                view.emitWorldToScreenPoints(args.getArray(0), args.getString(1))
+                args.getArray(0)?.let { view.emitWorldToScreenPoints(it, args.getString(1)) }
             }
 
             "getWorldPoints" -> if (args != null) {
-                view.emitScreenToWorldPoints(args.getArray(0), args.getString(1))
+                args.getArray(0)?.let { view.emitScreenToWorldPoints(it, args.getString(1)) }
             }
 
             else -> throw IllegalArgumentException(
@@ -171,7 +171,13 @@ class ClusteredYamapViewManager internal constructor() : ViewGroupManager<Cluste
 
     @ReactProp(name = "clusteredMarkers")
     fun setClusteredMarkers(view: View, points: ReadableArray) {
-        castToYaMapView(view).setClusteredMarkers(points.toArrayList())
+
+        ArrayList(points.toArrayList().filterNotNull()).let {
+            castToYaMapView(view).setClusteredMarkers(
+                it
+            )
+        }
+
     }
 
     @ReactProp(name = "clusterColor")
@@ -243,7 +249,7 @@ class ClusteredYamapViewManager internal constructor() : ViewGroupManager<Cluste
             val vehicles = ArrayList<String>()
             if (jsVehicles != null) {
                 for (i in 0 until jsVehicles.size()) {
-                    vehicles.add(jsVehicles.getString(i))
+                    jsVehicles.getString(i)?.let { vehicles.add(it) }
                 }
             }
             castToYaMapView(view).findRoutes(points, vehicles, id)
