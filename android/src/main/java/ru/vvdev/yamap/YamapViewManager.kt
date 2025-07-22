@@ -37,7 +37,7 @@ class YamapViewManager internal constructor() : ViewGroupManager<YamapView>() {
             .build()
     }
 
-    override fun getExportedCustomBubblingEventTypeConstants(): MutableMap<String, Any>? {
+    override fun getExportedCustomBubblingEventTypeConstants(): Map<String, Any> {
         return MapBuilder.builder<String, Any>()
             .put(
                 "routes",
@@ -159,7 +159,7 @@ class YamapViewManager internal constructor() : ViewGroupManager<YamapView>() {
             }
 
             "findRoutes" -> if (args != null) {
-                findRoutes(view, args.getArray(0), args.getArray(1), args.getString(2))
+                args.getString(2)?.let { findRoutes(view, args.getArray(0), args.getArray(1), it) }
             }
 
             "setZoom" -> if (args != null) {
@@ -217,19 +217,23 @@ class YamapViewManager internal constructor() : ViewGroupManager<YamapView>() {
             "findClosestPoint" -> if(args !== null) {
                 val targetPoint: Point
                 val p = args.getArray(0)
-                targetPoint = Point(p.getDouble(0), p.getDouble(1))
+                targetPoint = Point(p!!.getDouble(0), p.getDouble(1))
                 val pointsArray: WritableArray =  Arguments.createArray()
-                for (i in 0 until args.getArray(1).size()) {
-                    val p = args.getArray(1).getArray(i)
+                for (i in 0 until args.getArray(1)!!.size()) {
+                    val p = args.getArray(1)?.getArray(i)
                     pointsArray.pushMap(Arguments.createMap().apply {
-                        putDouble("lat", p.getDouble(0))
-                        putDouble("lon", p.getDouble(1))
+                        if (p != null) {
+                            putDouble("lat", p.getDouble(0))
+                        }
+                        if (p != null) {
+                            putDouble("lon", p.getDouble(1))
+                        }
                     })
                 }
 
                 val pointsList: List<Point> = (0 until pointsArray.size()).map { i ->
                     val map = pointsArray.getMap(i)
-                    Point(map.getDouble("lat"), map.getDouble("lon"))
+                    map?.let { Point(it.getDouble("lat"), map.getDouble("lon")) }!!
                 }
                 val closest = findClosestPoint(targetPoint, pointsList)
                 view.emitClosestPoint(closest!!, args.getString(2))
@@ -248,11 +252,11 @@ class YamapViewManager internal constructor() : ViewGroupManager<YamapView>() {
             }
 
             "getScreenPoints" -> if (args != null) {
-                view.emitWorldToScreenPoints(args.getArray(0), args.getString(1))
+                args.getArray(0)?.let { view.emitWorldToScreenPoints(it, args.getString(1)) }
             }
 
             "getWorldPoints" -> if (args != null) {
-                view.emitScreenToWorldPoints(args.getArray(0), args.getString(1))
+                args.getArray(0)?.let { view.emitScreenToWorldPoints(it, args.getString(1)) }
             }
 
             else -> throw IllegalArgumentException(
@@ -560,7 +564,7 @@ class YamapViewManager internal constructor() : ViewGroupManager<YamapView>() {
 
             if (jsVehicles != null) {
                 for (i in 0 until jsVehicles.size()) {
-                    vehicles.add(jsVehicles.getString(i))
+                    jsVehicles.getString(i)?.let { vehicles.add(it) }
                 }
             }
 

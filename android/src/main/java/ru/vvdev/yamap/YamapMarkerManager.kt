@@ -23,7 +23,7 @@ class YamapMarkerManager internal constructor() : ViewGroupManager<YamapMarker>(
             .build()
     }
 
-    override fun getExportedCustomBubblingEventTypeConstants(): MutableMap<String, Any>? {
+    override fun getExportedCustomBubblingEventTypeConstants(): Map<String, Any> {
         return MapBuilder.builder<String, Any>()
             .build()
     }
@@ -109,10 +109,12 @@ class YamapMarkerManager internal constructor() : ViewGroupManager<YamapMarker>(
             "animatedMoveTo" -> {
                 val markerPoint = args!!.getMap(0)
                 val moveDuration = args.getInt(1)
-                val lon = markerPoint.getDouble("lon").toFloat()
-                val lat = markerPoint.getDouble("lat").toFloat()
-                val point = Point(lat.toDouble(), lon.toDouble())
-                castToMarkerView(view).animatedMoveTo(point, moveDuration.toFloat())
+                val lon = markerPoint?.getDouble("lon")?.toFloat()
+                val lat = markerPoint?.getDouble("lat")?.toFloat()
+                val point = lat?.let { lon?.let { it1 -> Point(it.toDouble(), it1.toDouble()) } }
+                if (point != null) {
+                    castToMarkerView(view).animatedMoveTo(point, moveDuration.toFloat())
+                }
                 return
             }
 

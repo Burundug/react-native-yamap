@@ -20,7 +20,7 @@ class YamapCircleManager internal constructor() : ViewGroupManager<YamapCircle>(
             .build()
     }
 
-    override fun getExportedCustomBubblingEventTypeConstants(): MutableMap<String, Any>? {
+    override fun getExportedCustomBubblingEventTypeConstants(): Map<String, Any> {
         return MapBuilder.builder<String, Any>()
             .build()
     }

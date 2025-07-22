@@ -252,7 +252,7 @@ open class YamapView(context: Context?) : MapView(context), UserLocationObjectLi
 
         for (i in 0 until worldPoints.size()) {
             val p = worldPoints.getMap(i)
-            val worldPoint = Point(p.getDouble("lat"), p.getDouble("lon"))
+            val worldPoint = Point(p!!.getDouble("lat"), p.getDouble("lon"))
             val screenPoint = mapWindow.worldToScreen(worldPoint)
             screenPoints.pushMap(screenPointToJSON(screenPoint))
         }
@@ -271,7 +271,7 @@ open class YamapView(context: Context?) : MapView(context), UserLocationObjectLi
 
         for (i in 0 until screenPoints.size()) {
             val p = screenPoints.getMap(i)
-            val screenPoint = ScreenPoint(p.getDouble("x").toFloat(), p.getDouble("y").toFloat())
+            val screenPoint = ScreenPoint(p!!.getDouble("x").toFloat(), p.getDouble("y").toFloat())
             val worldPoint = mapWindow.screenToWorld(screenPoint)
             worldPoints.pushMap(worldPointToJSON(worldPoint))
         }
@@ -711,7 +711,7 @@ open class YamapView(context: Context?) : MapView(context), UserLocationObjectLi
         val wTransports = Arguments.createMap()
 
         for ((key, value) in transports) {
-            wTransports.putArray(key, Arguments.fromList(value))
+            wTransports.putArray(key, value?.let { Arguments.fromList(it) })
         }
 
         routeMetadata.putMap("transports", wTransports)
