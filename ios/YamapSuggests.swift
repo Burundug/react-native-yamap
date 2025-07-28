@@ -165,12 +165,15 @@ class YamapSuggests: NSObject {
     }
 
     @objc func reset(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
-        DispatchQueue.main.async {
-            if let client = self.suggestClient {
-                client.reset()
+        do {
+            if let client = suggestClient {
+                DispatchQueue.main.async {
+                    client.reset()
+                }
             }
-
-            self.safeResolve(resolve, with: [])
+            resolve([])
+        } catch {
+            reject("ERROR", "Error during reset suggestions", nil)
         }
     }
 
